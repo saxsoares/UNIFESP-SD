@@ -1,0 +1,13 @@
+REQUEST_TOKEN = {PID_c, T_c}
+REPLY_ALLOW = {PID_c, T_s, recurso}
+RELEASE_TOKEN = {PID_c, T_c, *recurso}
+
+Cliente requisa token (REQUEST_TOKEN{PID_c, T_c})
+Espera Resposta ?? Qnto tempo ?
+
+Servidor responde (para todos? ou somente para o qual concederá o token?)
+Servidor envia REPLY_ALLOW{PID_c, T_s, recurso}
+
+Cliente atualisa valor do recurso e envia 
+RELEASE_TOKEN{PID_c, T_c, recurso)
+
