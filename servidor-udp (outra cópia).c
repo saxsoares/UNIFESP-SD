@@ -30,19 +30,31 @@ int main(int argc, char **argv) {
 	int nr, ns;
 	while (1) {
 		addrlen = sizeof(caddr);
-		nr = recvfrom(sock, req, MSG_LEN, 0, (struct sockaddr *)&caddr,
-			&addrlen);
+		nr = recvfrom(sock, req, MSG_LEN, 0, (struct sockaddr *)&caddr,	&addrlen);
 		if (nr < 0) {
 			perror("recvfrom()");
 			return -1;
 		}
 
-		ns = sendto(sock, req, nr, 0, (struct sockaddr *)&caddr,
-				addrlen);
+		ns = sendto(sock, req, nr, 0, (struct sockaddr *)&caddr, addrlen);
 		if (ns < 0) {
 			perror("sendto()");
 			return -1;
 		}
+
+		//ENVIA ACK
+        //VERIFICA QUE TIPO DE MSG
+        //      //REQUEST TOKEN
+                    //Verifica TOKEN. EM USO?
+                        //NẪO! RETORNA TOKEN
+                        //SIM!
+                            //Insere na fila
+        //      //RELEASE TOKEN
+        //      //VERIFICA FILA
+        //      //VAZIA?
+                    //SIM -> NADA
+                    //NÃO -> TOKEN TO REMOVE(FILA)
+
 	}
 	return 0;
 }
