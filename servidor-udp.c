@@ -1,26 +1,26 @@
-<pre><p>#include &lt;stdio.h&gt;
-#include &lt;stdlib.h&gt;
-#include &lt;sys/socket.h&gt;
-#include &lt;netinet/in.h&gt;
-#include &lt;arpa/inet.h&gt;
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 int main(int argc, char **argv) {
 	if (argc != 2){
-		printf(&quot;uso: %s &lt;porta&gt;\n&quot;, argv[0]);
+		printf("uso: %s <porta>\n", argv[0]);
 		return 0;
 	}
 
 	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sock &lt; 0) {
-		perror (&quot;socket()&quot;);
+	if (sock < 0) {
+		perror ("socket()");
 		return -1;
 	}
 	struct sockaddr_in srv_addr;
 	srv_addr.sin_family = AF_INET;
 	srv_addr.sin_port = htons(atoi(argv[1]));
 	srv_addr.sin_addr.s_addr = INADDR_ANY;
-	if (bind(sock, (struct sockaddr *)&amp;srv_addr, sizeof(srv_addr)) &lt; 0) {
-		perror(&quot;bind()&quot;);
+	if (bind(sock, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) < 0) {
+		perror("bind()");
 		return -1;
 	}
 	#define MSG_LEN (64 * 1024)
@@ -30,20 +30,20 @@ int main(int argc, char **argv) {
 	int nr, ns;
 	while (1) {
 		addrlen = sizeof(caddr);
-		nr = recvfrom(sock, req, MSG_LEN, 0, (struct sockaddr *)&amp;caddr,
-			&amp;addrlen);
-		if (nr &lt; 0) {
-			perror(&quot;recvfrom()&quot;);
+		nr = recvfrom(sock, req, MSG_LEN, 0, (struct sockaddr *)&caddr,
+			&addrlen);
+		if (nr < 0) {
+			perror("recvfrom()");
 			return -1;
 		}
 
-		ns = sendto(sock, req, nr, 0, (struct sockaddr *)&amp;caddr,
+		ns = sendto(sock, req, nr, 0, (struct sockaddr *)&caddr,
 				addrlen);
-		if (ns &lt; 0) {
-			perror(&quot;sendto()&quot;);
+		if (ns < 0) {
+			perror("sendto()");
 			return -1;
 		}
 	}
 	return 0;
 }
-</p></pre>
+

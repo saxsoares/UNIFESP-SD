@@ -45,6 +45,11 @@ int main(int argc, char **argv){
 		perror("recvfrom()");
 		return -1;
 	}
+	int len=20;
+	char buffer[len];
+
+	inet_ntop(AF_INET, &(addr.sin_addr), buffer, len);
+	printf("address:%s\n",buffer);
 	printf("recebeu: %s\n", resp);
 	return 0;
 }
