@@ -4,24 +4,25 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <limits.h>
+#include <unistd.h>
 
-#define REQUEST_TOKEN 100
-#define RELEASE_TOKEN 200
-#define REPLY_ALLOW 300
-#define AGUARDANDO 400
+#define REQUEST_TOKEN 10
+#define RELEASE_TOKEN 20
+#define REPLY_ALLOW 30
+#define ACK 40
 
-typedef struct TRecurso *Recurso;
-struct TRecurso{
+struct SToken{
     char flag;
     int valor;
 };
 
 typedef struct request *treq;
 struct request{
-    int cod;
-    int PID;
+    int rec;
+    char cod;
     int tempo;
-    Recurso rec;
+    int PID;
 };
 
 typedef struct Sitem *Titem;
@@ -65,32 +66,33 @@ int insere(Tfila fila, int PID, int tempo, struct sockaddr_in caddr, socklen_t a
     novo->tempo = tempo;
     novo->addrlen = addrlen;
     novo->caddr = caddr;
-
-    if(fila->tamanho == 0){
-      novo->next = NULL;
-      fila->head = novo;
-    }
-    else{
-      if(fila->head->tempo > tempo){
-        novo->next = fila->head;
-        fila->head = novo;
-      }
-      else{
-        Titem aux = fila->head;
-        while(aux->next != NULL && aux->next->tempo < tempo)
-          aux = aux->next;
-        novo->next = aux->next;
-        aux->next = novo;
-      }
-    }
-    fila->tamanho++;
-    return 1;
+    if(!EstaNaFila(fila, novo)){
+        if(fila->tamanho == 0){
+          novo->next = NULL;
+          fila->head = novo;
+        }
+        else{
+          if(fila->head->tempo > tempo){
+            novo->next = fila->head;
+            fila->head = novo;
+          }
+          else{
+            Titem aux = fila->head;
+            while(aux->next != NULL && aux->next->tempo < tempo)
+              aux = aux->next;
+            novo->next = aux->next;
+            aux->next = novo;
+          }
+        }
+        fila->tamanho++;
+        return 1;
+     }
   }
   return 0;
 }
 
 Titem removeItem(Tfila fila){
-    Titem item = malloc(sizeof(item));
+    Titem item = malloc(sizeof(struct Sitem));
     if(fila->head != NULL){
         Titem aux = fila->head;
         fila->head = fila->head->next;
@@ -102,7 +104,7 @@ Titem removeItem(Tfila fila){
         fila->tamanho--;
         return item;
     }
-    return NULL;
+    return item;
 }
 
 void imprime(Tfila fila){
@@ -119,15 +121,16 @@ int main(int argc, char **argv) {
 		printf("uso: %s <porta>\n", argv[0]);
 		return 0;
 	}
+    printf("\n\n");
+    long int TEMPO;
 
-    int TEMPO;
     TEMPO = 0;
     Tfila fila;
     fila = init(10);
-    Recurso Token = malloc(sizeof(Recurso));
+    struct SToken Token;
 
-    Token->valor = 0;
-    Token->flag = -1;
+    Token.valor = 30;
+    Token.flag = -1;
 
 	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock < 0) {
@@ -144,83 +147,97 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	treq req;
-	treq ack;
-	treq rep;
-	size_t reqlen = sizeof(struct TRecurso);
-	socklen_t addrlen;
+	treq req = (treq)malloc(sizeof(struct request));
+	treq ack = (treq)malloc(sizeof(struct request));
+	treq rep = (treq)malloc(sizeof(struct request));
+	size_t reqlen = sizeof(struct request);
 	struct sockaddr_in caddr;
+	socklen_t addrlen;
+	addrlen = sizeof(caddr);
 	int nr, ns;
 	Titem cliente;
-
+    int len=20;
+    char client_ip[len];
 	while (1) {
+        bzero(client_ip, len);
         addrlen = sizeof(caddr);
 		// PRINTS
-
+        printf("_________________fila__________________\n");
         imprime(fila);
         printf("\nAguardando mensagem:\n");
-		nr = recvfrom(sock, &req, reqlen, 0, (struct sockaddr *)&caddr,	&addrlen);
+		nr = recvfrom(sock, req, reqlen, 0, (struct sockaddr *)&caddr,	&addrlen);
 		if (nr < 0) {
 			perror("recvfrom()");
 			return -1;
 		}
-		printf("Recebido MSG: req->cod = %d from %d\n", req->cod, req->PID);
-		TEMPO = (TEMPO > req->tempo) ? (TEMPO+1) : (req->tempo+1);
-        // REQ = 100 -> REQUEST_TOKEN
+
+        inet_ntop(AF_INET, &(caddr.sin_addr), client_ip, len);
+		printf("Mensagem recebida: req->cod = %d\tfrom %s\t(%d, %d)\n", req->cod, client_ip, req->PID, req->tempo);
+		TEMPO = (TEMPO > req->tempo) ? (TEMPO+1)%INT_MAX : (req->tempo+1)%INT_MAX;
+
+		// REQ = 100 -> REQUEST_TOKEN
         // REQ = 200 -> RELEASE_TOKEN
         // REQ = 300 -> REPLY_ALLOW
         // REQ = 400 -> ACK
+
         //ENVIA ACK
-        ack->cod = req->cod;
+        ack->cod = ACK;
         ack->PID = req->PID;
-        ack->tempo = TEMPO++;
+        ack->tempo = TEMPO;
         printf("Enviando ACK (ack->cod = %d, ack->PID = %d, ack->tempo=%d)\n", ack->cod, ack->PID, ack->tempo);
-		ns = sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr *)&caddr, addrlen);
+		ns = sendto(sock, ack, reqlen, 0, (struct sockaddr *)&caddr, addrlen);
 		if (ns < 0) {
 			perror("sendto()");
 			return -1;
 		}
-        //VERIFICA QUE TIPO DE MSG
+		sleep(1);
+        //VERIFICA TIPO DA MSG
         if(req->cod == REQUEST_TOKEN){       //      //REQUEST_TOKEN
-            if(Token->flag == -1){          //Verifica TOKEN. EM USO?             //NẪO! RETORNA TOKEN
-                printf("Recebido REQUEST_TOKEN & Fila Vazia. (%d, %d)\n", req->PID, req->tempo);
-                Token->flag = req->PID;
+            printf("TRATANDO REQUISIÇÃO DE TOKEN:\n");
+            if(Token.flag == -1){          //Verifica TOKEN. EM USO?             //NẪO! RETORNA TOKEN
+                printf("\tRecebido REQUEST_TOKEN & Fila Vazia. (%d, %d)\n", req->PID, req->tempo);
+                Token.flag = req->PID;
                 rep->cod = REPLY_ALLOW;
                 rep->PID = req->PID;
-                rep->rec = Token;
-                rep->tempo = TEMPO++;
-                printf("Enviando REPLY_ALLOW to %d (Token, tempo)=(%d, %d)\n", rep->PID, Token->valor, rep->tempo);
-                ns = sendto(sock, &rep, sizeof(rep), 0, (struct sockaddr *)&caddr, addrlen);
+                rep->rec = Token.valor;
+                rep->tempo = (++TEMPO)%INT_MAX;
+                printf("\tEnviando REPLY_ALLOW to %d(%s)\n\t(cod, Token, tempo)=(%d, %d, %d)\n", rep->PID, client_ip, rep->cod, rep->rec, rep->tempo);
+                ns = sendto(sock, rep, sizeof(rep), 0, (struct sockaddr *)&caddr, addrlen);
                 if (ns < 0) {
                     perror("sendto()");
                     return -1;
                 }
             }
             else{//SIM!  //Insere na fila
-                printf("Enfileirando: Cliente (%d, %d)\n", req->PID, req->tempo);
+                printf("\tEnfileirando: Cliente (%d, %d)\n", req->PID, req->tempo);
                 insere(fila, req->PID, req->tempo, caddr, addrlen);
             }
         }
         else if(req->cod == RELEASE_TOKEN){ //      //RELEASE TOKEN
             // ATUALIZAR TOKEN
-            Token->valor = req->rec->valor;
-            Token->flag = -1;
-            printf("Recebido RELEASE_TOKEN. novo Valor: (%d)\n", Token->valor );
-            if(fila->tamanho == 0)//      //VERIFICA FILA
+            Token.valor = req->rec;
+            Token.flag = -1;
+            printf("Recebido RELEASE_TOKEN. Novo Valor: (%d)\n", Token.valor );
+            if(fila->tamanho == 0){//      //VERIFICA FILA
+                printf("\tFila vazia, Reiniciando...\n");
                 continue;
+            }
             else{
+                printf("Removendo primeiro da fila:\n");
                 cliente = removeItem(fila);
                 rep->cod = REPLY_ALLOW;
                 rep->PID = cliente->PID;
-                rep->rec = Token;
-                rep->tempo = TEMPO++;
-                printf("Enviando para prox da fila: (PID, Tempo, Token) = (%d, %d, %d)\n", rep->PID, rep->tempo, rep->rec->valor);
-                ns = sendto(sock, &rep, sizeof(rep), 0, (struct sockaddr *)&cliente->caddr, cliente->addrlen);
+                rep->rec = Token.valor;
+                rep->tempo = (++TEMPO)%INT_MAX;
+                Token.flag = cliente->PID;
+                bzero(client_ip, len);
+                inet_ntop(AF_INET, &(cliente->caddr.sin_addr), client_ip, len);
+                printf("Enviando para prox da fila: %d(%s) (Token, tempo)=(%d, %d)\n", rep->PID, client_ip, rep->tempo, rep->rec);
+                ns = sendto(sock, rep, sizeof(rep), 0, (struct sockaddr *)&cliente->caddr, cliente->addrlen);
                 if (ns < 0) {
                     perror("sendto()");
                     return -1;
                 }
-                Token->flag = cliente->PID;
             }
         }
 	}
